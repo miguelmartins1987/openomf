@@ -28,7 +28,6 @@ test.bk
 test.trn
 test.rec
 
-android/org.openomf/app/src/main/assets/shaders/*
 android/org.openomf/app/src/main/assets/resources/*
 android/org.openomf/app/.cxx/*
 android/org.openomf/app/build/*
