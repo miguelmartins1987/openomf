@@ -52,11 +52,27 @@ bool has_gl_available(int version_major, int version_minor) {
     SDL_GLContext *c;
     bool ret = false;
 
+#if defined(__ANDROID__)
+    // Android requires OpenGL ES
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, version_major);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
+#else
+    // Desktop OpenGL Core Profile
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, version_major);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, version_minor);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+#endif
 
-    if((w = SDL_CreateWindow("", 0, 0, 320, 200, SDL_WINDOW_HIDDEN | SDL_WINDOW_OPENGL)) == NULL) {
+    // Use SDL_WINDOW_SHOWN or SDL_WINDOW_FULLSCREEN on Android rather than SDL_WINDOW_HIDDEN
+    Uint32 window_flags = SDL_WINDOW_OPENGL;
+#if defined(__ANDROID__)
+    window_flags |= SDL_WINDOW_FULLSCREEN;
+#else
+    window_flags |= SDL_WINDOW_HIDDEN;
+#endif
+
+    if((w = SDL_CreateWindow("", 0, 0, 320, 200, window_flags)) == NULL) {
         goto exit_0;
     }
     if((c = SDL_GL_CreateContext(w)) == NULL) {
@@ -75,28 +91,50 @@ exit_0:
 
 bool create_window(SDL_Window **window, int width, int height, bool fullscreen) {
     char title[32];
-    snprintf(title, 32, "OpenOMF v%s", get_version_string());
+    snprintf(title, sizeof(title), "OpenOMF v%s", get_version_string());
 
-    // Request OpenGL 3.3 core context. This also gives us GLSL 330.
+#if defined(__ANDROID__)
+    // Request OpenGL ES 3.0 profile for Android
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
+#else
+    // Request OpenGL 3.3 Core Profile for Desktop
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+#endif
 
-    // RGBA8888
+    // RGBA8888 Color Buffer
     SDL_GL_SetAttribute(SDL_GL_RED_SIZE, 8);
     SDL_GL_SetAttribute(SDL_GL_GREEN_SIZE, 8);
     SDL_GL_SetAttribute(SDL_GL_BLUE_SIZE, 8);
     SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, 8);
 
-    SDL_Window *w = SDL_CreateWindow(title, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, width, height,
-                                     SDL_WINDOW_SHOWN | SDL_WINDOW_OPENGL);
+    Uint32 window_flags = SDL_WINDOW_SHOWN | SDL_WINDOW_OPENGL;
+
+#if defined(__ANDROID__)
+    // Android applications almost always need fullscreen native resolution
+    window_flags |= SDL_WINDOW_FULLSCREEN;
+
+    // Ignore passed coordinates and let Android use native surface bounds
+    int win_x = SDL_WINDOWPOS_UNDEFINED;
+    int win_y = SDL_WINDOWPOS_UNDEFINED;
+#else
+    int win_x = SDL_WINDOWPOS_CENTERED;
+    int win_y = SDL_WINDOWPOS_CENTERED;
+#endif
+
+    SDL_Window *w = SDL_CreateWindow(title, win_x, win_y, width, height, window_flags);
     if(w == NULL) {
         log_error("Could not create window: %s", SDL_GetError());
         return false;
     }
 
+#if !defined(__ANDROID__)
+    // Handle desktop-specific windowed/fullscreen toggle
     if(fullscreen) {
-        if(SDL_SetWindowFullscreen(w, SDL_WINDOW_FULLSCREEN) != 0) {
+        if(SDL_SetWindowFullscreen(w, SDL_WINDOW_FULLSCREEN_DESKTOP) != 0) {
             log_error("Could not set fullscreen mode: %s", SDL_GetError());
         } else {
             log_info("Fullscreen mode enabled!");
@@ -104,6 +142,7 @@ bool create_window(SDL_Window **window, int width, int height, bool fullscreen) 
     } else {
         SDL_SetWindowFullscreen(w, 0);
     }
+#endif
 
     SDL_DisableScreenSaver();
     *window = w;

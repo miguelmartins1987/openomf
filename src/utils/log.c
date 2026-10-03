@@ -1,5 +1,21 @@
 #include "utils/log.h"
 
+#if defined(__ANDROID__)
+    #include <android/log.h>
+    #define LOG_TAG "OpenOMF"
+
+// Helper function to map custom log levels to Android Logcat priorities
+static android_LogPriority get_android_log_priority(log_level level) {
+    switch(level) {
+        case LOG_DEBUG:   return ANDROID_LOG_DEBUG;
+        case LOG_INFO:    return ANDROID_LOG_INFO;
+        case LOG_WARN:     return ANDROID_LOG_WARN;
+        case LOG_ERROR:   return ANDROID_LOG_ERROR;
+        default:          return ANDROID_LOG_UNKNOWN;
+    }
+}
+#endif
+
 #include <SDL_mutex.h>
 #include <assert.h>
 #include <stdarg.h>
@@ -47,11 +63,13 @@ static const char *level_colors[] = {
 static log_state *state = NULL;
 
 void log_init(void) {
+#ifndef __ANDROID__
     assert(state == NULL);
     state = omf_calloc(1, sizeof(log_state));
     state->level = LOG_DEBUG;
     state->colors = false;
     state->target_count = 0;
+#endif
 }
 
 log_level log_level_text_to_enum(const char *level, log_level default_value) {
@@ -94,16 +112,21 @@ void log_close(void) {
 }
 
 void log_set_level(log_level level) {
+#ifndef __ANDROID__
     assert(state != NULL);
     state->level = level;
+#endif
 }
 
 void log_set_colors(bool toggle) {
+#ifndef __ANDROID__
     assert(state != NULL);
     state->colors = toggle;
+#endif
 }
 
 static void log_add_fp(FILE *fp, bool close, log_level level, bool colors) {
+#ifndef __ANDROID__
     assert(state != NULL);
     assert(state->target_count < MAX_TARGETS - 1);
     log_target *target = &state->targets[state->target_count++];
@@ -112,6 +135,7 @@ static void log_add_fp(FILE *fp, bool close, log_level level, bool colors) {
     target->level = level;
     target->colors = colors;
     target->lock = SDL_CreateMutex();
+#endif
 }
 
 void log_add_stderr(log_level level, bool colors) {
@@ -133,16 +157,33 @@ static void format_timestamp(char *buffer, size_t len) {
 }
 
 void log_msg(log_level level, const char *fmt, ...) {
-    assert(state != NULL);
     char dt[16];
     va_list args;
+#ifndef __ANDROID__
+    assert(state != NULL);
     const char *color = level_colors[level];
     const char *name = level_names[level];
 
     if(level < state->level) {
         return;
     }
+#endif
 
+#if defined(__ANDROID__)
+    // --- Android Logcat Logging Path ---
+    android_LogPriority priority = get_android_log_priority(level);
+
+    va_start(args, fmt);
+    __android_log_vprint(priority, LOG_TAG, fmt, args);
+    va_end(args);
+
+    // Maintain internal state buffer for the last error encountered
+    if(level == LOG_ERROR) {
+        va_start(args, fmt);
+        vsnprintf(last_error, sizeof(last_error), fmt, args);
+        va_end(args);
+    }
+#else
     va_start(args, fmt);
     format_timestamp(dt, 16);
     for(int i = 0; i < state->target_count; i++) {
@@ -176,6 +217,7 @@ void log_msg(log_level level, const char *fmt, ...) {
         SDL_UnlockMutex(target->lock);
     }
     va_end(args);
+#endif
 }
 
 const char *log_last_error(void) {

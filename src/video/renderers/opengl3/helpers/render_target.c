@@ -12,10 +12,22 @@ typedef struct render_target {
     GLuint tex_unit;
 } render_target;
 
+// Pick a pixel transfer type that is valid for the internal format.
+// GLES 3.0 only accepts GL_HALF_FLOAT or GL_FLOAT with GL_RGBA16F.
+static GLenum transfer_type(GLint internal_format) {
+    switch(internal_format) {
+        case GL_RGBA16F:
+            return GL_HALF_FLOAT;
+        default:
+            return GL_UNSIGNED_BYTE;
+    }
+}
+
 render_target *render_target_create(GLuint tex_unit, int w, int h, GLint internal_format, GLenum format,
                                     GLenum filtering) {
     render_target *target = omf_calloc(1, sizeof(render_target));
-    target->texture_id = texture_create(tex_unit, w, h, internal_format, format, GL_UNSIGNED_BYTE, filtering);
+    target->texture_id =
+            texture_create(tex_unit, w, h, internal_format, format, transfer_type(internal_format), filtering);
     target->fbo_id = fbo_create(target->texture_id);
     target->tex_unit = tex_unit;
     return target;

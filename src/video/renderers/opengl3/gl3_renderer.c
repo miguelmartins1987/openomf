@@ -22,6 +22,12 @@
 #define NATIVE_W 320
 #define NATIVE_H 200
 
+#if defined(__ANDROID__) || defined(TARGET_GLES)
+#define PALETTED_FORMAT GL_RGBA16F
+#else
+#define PALETTED_FORMAT GL_RGBA16
+#endif
+
 typedef struct gl3_context {
     SDL_Window *window;
     SDL_GLContext *gl_context;
@@ -165,7 +171,7 @@ static bool setup_context(void *userdata, int window_w, int window_h, bool fulls
     ctx->atlas = atlas_create(TEX_UNIT_ATLAS, 2048, 2048);
     ctx->objects = object_array_create(2048.0f, 2048.0f);
     ctx->palette = gl_palette_create(TEX_UNIT_PALETTE);
-    ctx->paletted_target = render_target_create(TEX_UNIT_FBO, fb_w, fb_h, GL_RGBA16, GL_RGBA, GL_NEAREST);
+    ctx->paletted_target = render_target_create(TEX_UNIT_FBO, fb_w, fb_h, PALETTED_FORMAT, GL_RGBA, GL_NEAREST);
     ctx->rgba_target = render_target_create(TEX_UNIT_FBO2, fb_w, fb_h, GL_RGBA8, GL_RGBA, GL_NEAREST);
     ctx->remaps = remaps_create(TEX_UNIT_REMAPS);
 
@@ -264,7 +270,7 @@ static bool reset_context_with(void *userdata, int window_w, int window_h, bool 
         ctx->fb_scale = fb_scale;
         render_target_free(&ctx->paletted_target);
         render_target_free(&ctx->rgba_target);
-        ctx->paletted_target = render_target_create(TEX_UNIT_FBO, fb_w, fb_h, GL_RGBA16, GL_RGBA, GL_NEAREST);
+        ctx->paletted_target = render_target_create(TEX_UNIT_FBO, fb_w, fb_h, PALETTED_FORMAT, GL_RGBA, GL_NEAREST);
         ctx->rgba_target = render_target_create(TEX_UNIT_FBO2, fb_w, fb_h, GL_RGBA8, GL_RGBA, GL_NEAREST);
     }
 
@@ -535,10 +541,23 @@ static void render_area_finish(void *userdata, surface *dst) {
     // FBO may be scaled!
     const int scale = ctx->fb_scale;
     const SDL_Rect r = (SDL_Rect){x0 * scale, y0 * scale, (x1 - x0) * scale, (y1 - y0) * scale};
+#ifdef __ANDROID__
+    float *pixels = omf_calloc(r.w * r.h * 4, sizeof(float));
+    glReadPixels(r.x, r.y, r.w, r.h, GL_RGBA, GL_FLOAT, pixels);
+
+    uint16_t *buffer = omf_calloc(r.w * r.h, sizeof(uint16_t));
+    for(int i = 0; i < r.w * r.h; i++) {
+        buffer[i] = (uint16_t)(pixels[i * 4] * 1023.0f + 0.5f); // R channel -> palette index
+    }
+    omf_free(pixels);
+    surface_create_from_flip_scale(dst, r.w, r.h, buffer, 1.0f);
+    omf_free(buffer);
+#else
     uint16_t *buffer = omf_calloc(r.w * r.h, sizeof(uint16_t));
     glReadPixels(r.x, r.y, r.w, r.h, GL_RED, GL_UNSIGNED_SHORT, buffer);
     surface_create_from_flip_scale(dst, r.w, r.h, buffer, 1023.0f / 65535.0f);
     omf_free(buffer);
+#endif
 }
 
 static void capture_screen(void *userdata, video_screenshot_signal screenshot_cb) {

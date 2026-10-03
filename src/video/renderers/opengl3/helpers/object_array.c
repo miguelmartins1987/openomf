@@ -131,7 +131,19 @@ bool object_array_get_batch(const object_array *array, object_array_batch *state
 
 void object_array_draw(const object_array *array, object_array_batch *state) {
     int count = state->end - state->start;
+
+#if defined(__ANDROID__) || defined(TARGET_GLES)
+    // OpenGL ES fallback: iterate through the batch elements individually
+    for (int i = 0; i < count; i++) {
+        int idx = state->start + i;
+        if (array->fans_sizes[idx] > 0) {
+            glDrawArrays(GL_TRIANGLE_FAN, array->fans_starts[idx], array->fans_sizes[idx]);
+        }
+    }
+#else
+    // Desktop OpenGL
     glMultiDrawArrays(GL_TRIANGLE_FAN, array->fans_starts + state->start, array->fans_sizes + state->start, count);
+#endif
 }
 
 #define COORDS(ptr, cx, cy, tx, ty, transparency, remap_offset, remap_rounds, pal_offset, pal_limit, opacity, options) \

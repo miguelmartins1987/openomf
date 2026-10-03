@@ -26,6 +26,19 @@ static const char *git_sha1_hash = "";
 static const char *git_sha1_hash = SHA1_HASH;
 #endif
 
+#if defined(__ANDROID__)
+#include <stdlib.h>
+#include <android/log.h>
+
+void init_android_environment(void) {
+    const char *internal_dir = SDL_AndroidGetInternalStoragePath();
+    if (internal_dir) {
+        // Sets OPENOMF_RESOURCE_PATH to /data/data/<package_name>/files
+        setenv("OPENOMF_RESOURCE_PATH", internal_dir, 1);
+    }
+}
+#endif
+
 void scan_game_controllers(void) {
     log_info("Found %d joysticks attached", SDL_NumJoysticks());
     SDL_Joystick *joy;
@@ -53,6 +66,16 @@ void scan_game_controllers(void) {
 }
 
 int main(int argc, char *argv[]) {
+#if defined(__ANDROID__) && !defined(NDEBUG)
+    // Log process ID so you know LLDB target PID
+    __android_log_print(ANDROID_LOG_INFO, "OpenOMF main()", "Native main started. PID: %d", getpid());
+
+    // Give LLDB 3 seconds to finish attaching before executing main logic
+    sleep(3);
+#endif
+#if defined(__ANDROID__)
+    init_android_environment();
+#endif
     // Set up initial state for misc things
     char *ip = NULL;
     char *lobbyaddr = NULL;
