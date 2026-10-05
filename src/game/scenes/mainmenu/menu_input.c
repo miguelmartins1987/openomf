@@ -161,13 +161,11 @@ void menu_set_joystick2(component *c, void *userdata) {
 void menu_set_custom_keyboard(component *c, void *u) {
     scene *s = u;
     menu_input_local *local = menu_get_userdata(c->parent);
-    const gui_theme *theme = component_get_theme(c);
-    menu_link_menu(c->parent, menu_keyboard_create(s, theme, local->selected_player));
+    menu_link_menu(c->parent, menu_keyboard_create(s, local->selected_player), 25, 5, 270, 140);
 }
 
 void menu_input_done(component *c, void *u) {
-    menu *m = sizer_get_obj(c->parent);
-    m->finished = 1;
+    menu_finish(c->parent);
 }
 
 void menu_input_free(component *c) {

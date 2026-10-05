@@ -1,11 +1,8 @@
-#include <stdlib.h>
-
-#include "controller/controller.h"
 #include "game/gui/spritebutton.h"
+#include "controller/controller.h"
 #include "game/gui/text/text.h"
 #include "game/gui/widget.h"
 #include "utils/allocator.h"
-#include "utils/log.h"
 #include "video/video.h"
 
 typedef struct spritebutton {
@@ -76,10 +73,10 @@ static void spritebutton_focus(component *c, bool focused) {
     }
 }
 
-static int spritebutton_action(component *c, int action, int source) {
+static bool spritebutton_action(component *c, int action, int source) {
     spritebutton *b = widget_get_obj(c);
     if(component_is_disabled(c)) {
-        return 1;
+        return false;
     }
     if(action == ACT_KICK || action == ACT_PUNCH) {
         if(b->active_ticks >= 0) {
@@ -88,9 +85,9 @@ static int spritebutton_action(component *c, int action, int source) {
         if(b->click_cb) {
             b->click_cb(c, b->userdata);
         }
-        return 0;
+        return true;
     }
-    return 1;
+    return false;
 }
 
 static void spritebutton_layout(component *c, int x, int y, int w, int h) {

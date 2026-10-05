@@ -1,8 +1,5 @@
-#include <stdlib.h>
-
 #include "game/gui/component.h"
 #include "utils/allocator.h"
-#include "utils/log.h"
 
 void component_tick(component *c) {
     if(c->tick) {
@@ -16,18 +13,18 @@ void component_render(component *c) {
     }
 }
 
-int component_event(component *c, SDL_Event *event) {
+bool component_event(component *c, SDL_Event *event) {
     if(c->event) {
         return c->event(c, event);
     }
-    return 1;
+    return false;
 }
 
-int component_action(component *c, int action, int source) {
+bool component_action(component *c, int action, int source) {
     if(c->action) {
         return c->action(c, action, source);
     }
-    return 1;
+    return false;
 }
 
 void component_init(component *c, const gui_theme *theme) {
@@ -95,10 +92,14 @@ bool component_is_selected(const component *c) {
 }
 
 bool component_is_selectable(component *c) {
-    if(!c->supports_select) {
-        return false;
+    return c->supports_select;
+}
+
+void component_set_selectable(component *c, bool selectable) {
+    if(c->supports_select != selectable) {
+        c->supports_select = selectable;
+        c->dirty = true;
     }
-    return true;
 }
 
 bool component_is_focused(const component *c) {
